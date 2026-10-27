@@ -91,7 +91,7 @@ uv sync
 
 4. Start the app and then click the url in the terminal:
 ```bash
-python app.py
+uv run app.py
 
 http://127.0.0.1:7860
 ```
