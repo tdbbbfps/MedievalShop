@@ -5,7 +5,7 @@
 > Course homework: Unit G, My AI Customer Service Agent, with a Database and Tools  
 > Student: F115118133 柳健棠
 
-![Main screen of my agent, with the tool trace](main.png)
+![Main screen of my agent, with the tool trace](images/main.png)
 
 ## Who It Serves and When They Use It
 
@@ -46,9 +46,9 @@
 
 ## Sample Conversations
 
-![A question that uses get_shop_info](sample1.png)
+![A question that uses get_shop_info](images/sample1.png)
 
-![A question that uses calculate_order_cost](sample2.png)
+![A question that uses calculate_order_cost](images/sample2.png)
 
 ## Project Structure
 

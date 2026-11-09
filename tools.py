@@ -1,22 +1,18 @@
 import json
 from database import query_shop_info, query_item
 
-
-def get_shop_info(topic: str) -> str:
+def get_shop_info(topic : str) -> str:
     """查詢商店政策、營業時間、折扣規範等。"""
     result = query_shop_info(topic)
     return json.dumps(result, ensure_ascii=False)
 
 
-def get_item_info(name: str) -> str:
-    """查詢商品價格、是否在庫及詳細說明。"""
+def get_item_info(name : str) -> str:
+    """查詢商品詳細資訊。"""
     result = query_item(name)
     return json.dumps(result, ensure_ascii=False)
 
-
-def calculate_order_cost(
-    items: list, discount_type: str = "none", need_delivery_outside: bool = False
-) -> str:
+def calculate_order_cost(items : list, discount_type : str = "none", need_delivery_outside : bool = False) -> str:
     """由代碼執行精確訂單計算，嚴禁讓模型心算。"""
     total = 0.0
     details = []
