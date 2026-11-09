@@ -17,4 +17,4 @@ class Order(BaseModel):
     quantity : int = Field(..., description="訂購數量。", ge=1)
     total_price : float = Field(..., description="訂單總價。", ge=0)
     status : str = Field(..., description="訂單狀態。")
-    order_date : str = Field(..., description="訂單日期。")
+    order_date : str = Field(..., description="訂單日期。") 

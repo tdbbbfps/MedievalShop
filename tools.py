@@ -1,5 +1,12 @@
 import json
-from database import query_shop_info, query_item
+from database import (
+    query_shop_info,
+    query_item,
+    list_items_by_category,
+    place_order as db_place_order,
+    query_order as db_query_order,
+    cancel_order as db_cancel_order,
+)
 
 def get_shop_info(topic : str) -> str:
     """查詢商店政策、營業時間、折扣規範等。"""
@@ -10,6 +17,11 @@ def get_shop_info(topic : str) -> str:
 def get_item_info(name : str) -> str:
     """查詢商品詳細資訊。"""
     result = query_item(name)
+    return json.dumps(result, ensure_ascii=False)
+
+def list_shop_items(category: str = None) -> str:
+    """瀏覽架上現有商品清單。"""
+    result = list_items_by_category(category)
     return json.dumps(result, ensure_ascii=False)
 
 def calculate_order_cost(items : list, discount_type : str = "none", need_delivery_outside : bool = False) -> str:
@@ -65,6 +77,22 @@ def calculate_order_cost(items : list, discount_type : str = "none", need_delive
         ensure_ascii=False,
     )
 
+def place_order(customer_name: str, item_id: int, quantity: int) -> str:
+    """建立購買訂單。"""
+    result = db_place_order(customer_name, item_id, quantity)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def query_order(order_id: int) -> str:
+    """依訂單編號查詢訂單狀態與購買品項。"""
+    result = db_query_order(order_id)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def cancel_order(order_id: int) -> str:
+    """取消已建立的訂單。"""
+    result = db_cancel_order(order_id)
+    return json.dumps(result, ensure_ascii=False)
 
 def transfer_to_clerk(reason: str) -> str:
     """遇到客訴、資料庫查無資訊或非標準需求時轉交店主。"""
@@ -82,7 +110,11 @@ def transfer_to_clerk(reason: str) -> str:
 TOOL_MAPPING = {
     "get_shop_info": get_shop_info,
     "get_item_info": get_item_info,
+    "list_shop_items": list_shop_items,
     "calculate_order_cost": calculate_order_cost,
+    "place_order": place_order,
+    "query_order": query_order,
+    "cancel_order": cancel_order,
     "transfer_to_clerk": transfer_to_clerk,
 }
 
@@ -108,13 +140,13 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "get_item_info",
-            "description": "查詢裝備、道具或服務的詳細規格、庫存狀態與單價。注意：若顧客是要計算購買多樣物品的總金額、折扣或結帳，請勿使用此工具，應改用`calculate_order_cost`。",
+            "description": "查詢單一裝備、道具的詳細規格、剩餘庫存與單價。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "商品或服務名稱，例如：鐵製長劍、初級生命藥水、常規武器保養",
+                        "description": "商品名稱，例如：鐵製長劍、鐵製長槍",
                     }
                 },
                 "required": ["name"],
@@ -124,8 +156,24 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "list_shop_items",
+            "description": "瀏覽商店目前有庫存販售的商品列表。可依照類別篩選或查看全部。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": "欲瀏覽的分類（選填），如：武器、防具、藥水。若未提供則列出所有商品。",
+                    }
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "calculate_order_cost",
-            "description": "核心算帳工具，計算顧客購買一項或多項商品時的總金額。本工具會自動從資料庫查詢各品項單價並執行乘法加總、折扣扣除與運費計算。凡是詢問「總共多少錢」、「打折後多少」、「加上運費多少」均必須呼叫此工具。",
+            "description": "核心算帳工具，僅用於顧客下單前的報價與試算。凡是詢問「總共多少錢」、「打折後多少」、「加上運費多少」均必須呼叫此工具，禁止模型心算。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -139,16 +187,16 @@ TOOL_SCHEMAS = [
                             },
                             "required": ["name", "quantity"],
                         },
-                        "description": "購買品項與數量清單",
+                        "description": "欲試算的品項名稱與數量清單",
                     },
                     "discount_type": {
                         "type": "string",
                         "enum": ["none", "silver", "gold"],
-                        "description": "會員折扣類型：none (原價), silver (銀級9折), gold (金級8折)",
+                        "description": "冒險者公會徽章/會員折扣：none (原價), silver (銀級9折), gold (金級8折)",
                     },
                     "need_delivery_outside": {
                         "type": "boolean",
-                        "description": "是否需要城外配送（城外需加 50 金幣護送費，城內則免費）",
+                        "description": "是否需要城外護送配送（加收 50 金幣）",
                     },
                 },
                 "required": ["items"],
@@ -158,14 +206,73 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "place_order",
+            "description": "正式為顧客建立購買訂單並扣減倉庫庫存。請在確認顧客名稱、商品 ID 與數量後再呼叫。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "customer_name": {
+                        "type": "string",
+                        "description": "冒險者姓名",
+                    },
+                    "item_id": {
+                        "type": "integer",
+                        "description": "商品 ID（可由 get_item_info 獲得）",
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "description": "購買數量（必須大於 0）",
+                    },
+                },
+                "required": ["customer_name", "item_id", "quantity"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_order",
+            "description": "透過訂單編號（整數）查詢該筆訂單的購買明細、狀態與總金額。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "integer",
+                        "description": "訂單編號，例如 1",
+                    }
+                },
+                "required": ["order_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cancel_order",
+            "description": "取消指定的訂單編號，並自動將商品數量退回庫存。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "integer",
+                        "description": "欲取消的訂單編號",
+                    }
+                },
+                "required": ["order_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "transfer_to_clerk",
-            "description": "當資料庫查無特定物品、顧客要求自訂訂製、投訴或要求主管介入時使用此工具。",
+            "description": "遇到客訴、資料庫查無特定物品、顧客要求客製特殊武器或要求店長介入時使用此工具。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "reason": {
                         "type": "string",
-                        "description": "轉接給店主王小明的原因說明",
+                        "description": "轉接原因說明",
                     }
                 },
                 "required": ["reason"],
